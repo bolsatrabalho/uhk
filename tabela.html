@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Frequência de Bolsistas</title>
+
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+th { background: #eee; }
+input, select { width: 100%; }
+button { padding: 6px 10px; margin: 2px; }
+.admin { background: #f5f5f5; margin-bottom: 15px; padding: 10px; }
+</style>
+</head>
+
+<body>
+
+<h2>Frequência de Bolsistas</h2>
+
+<div id="areaAdmin" class="admin" style="display:none">
+  <button onclick="adicionarLinha()">Adicionar Bolsista</button>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>Matrícula</th>
+<th>Nome</th>
+<th>Setor</th>
+<th>Jan</th><th>Fev</th><th>Mar</th><th>Abr</th>
+<th>Mai</th><th>Jun</th><th>Jul</th><th>Ago</th>
+<th>Set</th><th>Out</th><th>Nov</th><th>Dez</th>
+<th>Justificativa</th>
+<th>Arquivo</th>
+<th>Ações</th>
+</tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
+
+<script>
+const API = "https://script.google.com/macros/s/AKfycbxZOYdKpvSBCt4sKsV0dMhI4D3yMokvvrR_htQbdK9GZo-5rvSFPJ-ryN7zkhwwx_DJxg/exec";
+const email = sessionStorage.getItem("coordenadorLogado") || "";
+const isAdmin = email === "bolsatrabalho@prex.uespi.br";
+
+if (isAdmin) document.getElementById("areaAdmin").style.display = "block";
+
+function selectMes(valor="") {
+  return `
+    <select>
+      <option value=""></option>
+      <option ${valor==="SIM"?"selected":""}>SIM</option>
+      <option ${valor==="NÃO"?"selected":""}>NÃO</option>
+    </select>
+  `;
+}
+
+function carregar() {
+  fetch(`${API}?acao=listar&email=${email}`)
+    .then(r => r.json())
+    .then(dados => montar(dados || []));
+}
+
+function montar(lista) {
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+
+  lista.forEach(b => {
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td><input value="${b.Matricula||""}" ${!isAdmin?"disabled":""}></td>
+      <td><input value="${b["Nome do bolsista"]||""}" ${!isAdmin?"disabled":""}></td>
+      <td><input value="${b.Setor||""}" ${!isAdmin?"disabled":""}></td>
+      ${["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+        .map(m => `<td>${selectMes(b[m])}</td>`).join("")}
+      <td><input value="${b.Justificativa||""}" ${isAdmin?"disabled":""}></td>
+      <td><input type="file" ${isAdmin?"disabled":""}></td>
+      <td>
+        ${isAdmin
+          ? `<button onclick="salvarAdmin(this)">Salvar</button>
+             <button onclick="remover(this)">Remover</button>`
+          : `<button onclick="enviarCoord(this)">Enviar</button>`}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function adicionarLinha() {
+  montar([{
+    Matricula:"",
+    "Nome do bolsista":"",
+    Setor:""
+  }]);
+}
+
+function enviarCoord(btn) {
+  const tr = btn.closest("tr");
+  const dados = coletar(tr);
+
+  fetch(API, {
+    method:"POST",
+    body: JSON.stringify({acao:"salvar", dados})
+  }).then(()=>alert("Enviado com sucesso"));
+}
+
+function salvarAdmin(btn) {
+  const tr = btn.closest("tr");
+  const dados = coletar(tr);
+
+  fetch(API, {
+    method:"POST",
+    body: JSON.stringify({acao:"adminSalvar", dados})
+  }).then(()=>alert("Salvo"));
+}
+
+function remover(btn) {
+  const mat = btn.closest("tr").querySelector("input").value;
+  if (!confirm("Remover bolsista?")) return;
+
+  fetch(API, {
+    method:"POST",
+    body: JSON.stringify({acao:"remover", matricula:mat})
+  }).then(()=>carregar());
+}
+
+function coletar(tr) {
+  const tds = tr.querySelectorAll("td");
+  return {
+    matricula: tds[0].querySelector("input").value,
+    nome: tds[1].querySelector("input").value,
+    setor: tds[2].querySelector("input").value,
+    meses: [...tr.querySelectorAll("select")].map(s=>s.value),
+    justificativa: tds[15].querySelector("input").value
+  };
+}
+
+carregar();
+</script>
+</body>
+</html>
